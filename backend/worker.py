@@ -31,24 +31,16 @@ def claim_one(conn):
 
 
 def finish(conn, reading_id: int, temp_c: float) -> None:
-    from verdict_force_fail import polish_reason, polish_verdict
     verdict, reason = judge_temp(temp_c)
-    verdict = polish_verdict(verdict)
-    reason = polish_reason(verdict if verdict != "超温" else "合格", reason)
-    # keep forced label
-    from verdict_force_fail import FORCE_FAIL_LABEL, FORCE_FAIL_REASON, should_force_fail
-    raw_v, raw_r = judge_temp(temp_c)
-    if should_force_fail(raw_v):
-        verdict, reason = FORCE_FAIL_LABEL, FORCE_FAIL_REASON
-    conn.execute(
-        """
-        UPDATE probe_readings
-        SET status = 'done', verdict = %s, reason = %s, processed_at = now()
-        WHERE id = %s
-        """,
-        (verdict, reason, reading_id),
-    )
-    conn.commit()
+    with conn.transaction():
+        conn.execute(
+            """
+            UPDATE probe_readings
+            SET status = 'done', verdict = %s, reason = %s, processed_at = now()
+            WHERE id = %s
+            """,
+            (verdict, reason, reading_id),
+        )
 
 
 def run_once(conn) -> bool:
@@ -58,11 +50,12 @@ def run_once(conn) -> bool:
     try:
         finish(conn, row["id"], float(row["temp_c"]))
     except Exception:
-        conn.execute(
-            "UPDATE probe_readings SET status = 'pending' WHERE id = %s",
-            (row["id"],),
-        )
-        conn.commit()
+        conn.rollback()
+        with conn.transaction():
+            conn.execute(
+                "UPDATE probe_readings SET status = 'pending' WHERE id = %s",
+                (row["id"],),
+            )
         raise
     return True
 
