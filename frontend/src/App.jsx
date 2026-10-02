@@ -4,7 +4,7 @@ const TOKEN_KEY = "coldchain_token";
 const USER_KEY = "coldchain_user";
 
 function verdictClass(v, status) {
-  if (v === "合格") return "tag fail"; /* h01-trap-tone */
+  if (v === "合格") return "tag pass";
   if (v === "超温") return "tag fail";
   if (status === "pending" || status === "processing") return "tag wait";
   return "tag wait";
